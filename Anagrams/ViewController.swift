@@ -12,12 +12,14 @@ class ViewController: UITableViewController {
     var allWordds = [String]()
     var usedWords = [String]()
     
+    var currentWord = ""
+    
 
     override func viewDidLoad() {
         super.viewDidLoad()
         
         navigationItem.rightBarButtonItem = UIBarButtonItem(barButtonSystemItem: .add, target: self, action: #selector(typeWord))
-        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(startGame))
+        navigationItem.leftBarButtonItem = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(restartGame))
         
         if let startWordURL = Bundle.main.url(forResource: "start", withExtension: ".txt") {
             if let startWords = try? String(contentsOf: startWordURL) {
@@ -35,9 +37,48 @@ class ViewController: UITableViewController {
     }
     
     @objc func startGame(){
-        title = allWordds.randomElement()
-        usedWords.removeAll(keepingCapacity: true)
+        let defaults = UserDefaults.standard
+        
+        let decoder = JSONDecoder()
+        if let encodedTitle = defaults.object(forKey: "mainWord") as? Data, let encodedGuess = defaults.object(forKey: "usedWord") as? Data{
+            if let oldTitle = try? decoder.decode(String.self, from: encodedTitle) {
+                title = oldTitle
+                
+                if let oldGuesses = try? decoder.decode([String].self, from: encodedGuess) {
+                    usedWords = oldGuesses
+                } else {
+                    usedWords = ["no words entered"]
+                }
+            }
+        } else {
+            title = allWordds.randomElement()
+            saveTitle()
+        }
+        
+        
+        
         tableView.reloadData()
+    }
+    @objc func restartGame(){
+        title = allWordds.randomElement()
+        saveTitle()
+        usedWords.removeAll(keepingCapacity: true)
+        saveUsedWords()
+        tableView.reloadData()
+    }
+    func saveTitle(){
+        let defaults = UserDefaults.standard
+        let encoder = JSONEncoder()
+        guard let encodedWord = try? encoder.encode(title) else {return}
+        defaults.set(encodedWord, forKey: "mainWord")
+    }
+    func saveUsedWords(){
+        let defaults = UserDefaults.standard
+        let encoder = JSONEncoder()
+        guard let encodedGuess = try? encoder.encode(usedWords) else {return
+            print("unable to save")
+        }
+        defaults.set(encodedGuess, forKey: "usedWord")
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -67,6 +108,7 @@ class ViewController: UITableViewController {
             if isReal(lowerAnswer) {
                 if isOriginal(lowerAnswer) {
                     usedWords.insert(lowerAnswer, at: 0)
+                    saveUsedWords()
                     DispatchQueue.main.async {
                         self.tableView.insertRows(at: [IndexPath(row: 0, section: 0)], with: .automatic)
                     }
